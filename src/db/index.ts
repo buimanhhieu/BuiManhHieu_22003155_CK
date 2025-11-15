@@ -38,3 +38,13 @@ export const initDatabase = async (db: SQLiteDatabase) => {
         throw error;
     }
 };
+
+export const createMovie = async (
+    db: SQLiteDatabase,
+    data: { title: string; year?: number; rating?: number }
+) => {
+    await db.runAsync(
+        `INSERT INTO movies (title, year, watched, rating, created_at) VALUES (?, ?, ?, ?, ?)`,
+        [data.title, data.year || null, 0, data.rating || null, Date.now()]
+    );
+};

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, FlatList, StyleSheet } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
-import { Card } from "react-native-paper";
+import { Card, FAB } from "react-native-paper";
+import MovieModal from "@/components/MovieModal";
+import { createMovie } from "@/db";
 
 type Movie = {
   id: number;
@@ -16,6 +18,7 @@ const HomeScreen = () => {
   const db = useSQLiteContext();
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     loadMovies();
@@ -31,6 +34,19 @@ const HomeScreen = () => {
       console.error("Error loading movies:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddMovie = async (data: {
+    title: string;
+    year?: number;
+    rating?: number;
+  }) => {
+    try {
+      await createMovie(db, data);
+      await loadMovies();
+    } catch (error) {
+      console.error("Error adding movie:", error);
     }
   };
 
@@ -78,6 +94,18 @@ const HomeScreen = () => {
           contentContainerStyle={styles.listContent}
         />
       )}
+
+      <FAB
+        icon="plus"
+        style={styles.fab}
+        onPress={() => setModalVisible(true)}
+      />
+
+      <MovieModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSave={handleAddMovie}
+      />
     </View>
   );
 };
@@ -121,6 +149,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: "#999",
+  },
+  fab: {
+    position: "absolute",
+    margin: 16,
+    right: 0,
+    bottom: 0,
   },
 });
 
