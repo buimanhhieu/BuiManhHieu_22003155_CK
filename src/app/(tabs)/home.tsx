@@ -1,73 +1,83 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
-import { Button, Card } from "react-native-paper";
+import { Card } from "react-native-paper";
+
+type Movie = {
+  id: number;
+  title: string;
+  year: number | null;
+  watched: number;
+  rating: number | null;
+  created_at: number;
+};
 
 const HomeScreen = () => {
   const db = useSQLiteContext();
-  const [dbStatus, setDbStatus] = useState<string>("Checking...");
-  const [testResult, setTestResult] = useState<string>("");
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkDatabase();
+    loadMovies();
   }, []);
 
-  const checkDatabase = async () => {
+  const loadMovies = async () => {
     try {
-      const tableInfo = await db.getAllAsync(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='movies'"
+      const data = await db.getAllAsync<Movie>(
+        "SELECT * FROM movies ORDER BY created_at DESC"
       );
-      
-      if (tableInfo.length > 0) {
-        const movieCount = await db.getFirstAsync<{ count: number }>(
-          "SELECT COUNT(*) as count FROM movies"
-        );
-        setDbStatus(`Database connected. Movies table exists. ${movieCount?.count || 0} movie(s) found.`);
-      } else {
-        setDbStatus("Database connected but movies table not found");
-      }
+      setMovies(data);
     } catch (error) {
-      setDbStatus("Database connection failed");
-      console.error("Database error:", error);
+      console.error("Error loading movies:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const testDatabase = async () => {
-    try {
-      const movies = await db.getAllAsync("SELECT * FROM movies");
-      setTestResult(` Found ${movies.length} movie(s) in database.`);
-    } catch (error) {
-      setTestResult(` Test failed: ${error instanceof Error ? error.message : "Unknown error"}`);
-      console.error("Test error:", error);
-    }
+  const renderMovieItem = ({ item }: { item: Movie }) => {
+    return (
+      <View style={styles.movieItem}>
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text style={styles.title}>{item.title}</Text>
+            {item.year && (
+              <Text style={styles.info}>Year: {item.year}</Text>
+            )}
+            <Text style={styles.info}>
+              Watched: {item.watched === 1 ? "Yes" : "No"}
+            </Text>
+            {item.rating && (
+              <Text style={styles.info}>Rating: {item.rating}/5</Text>
+            )}
+          </Card.Content>
+        </Card>
+      </View>
+    );
   };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.title}>Database Connection Test</Text>
-          
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusLabel}>Status:</Text>
-            <Text style={styles.statusText}>{dbStatus}</Text>
-          </View>
-
-          <Button
-            mode="contained"
-            onPress={testDatabase}
-            style={styles.button}
-          >
-            Test Database Operations
-          </Button>
-
-          {testResult ? (
-            <View style={styles.resultContainer}>
-              <Text style={styles.resultText}>{testResult}</Text>
-            </View>
-          ) : null}
-        </Card.Content>
-      </Card>
+      <Text style={styles.header}>Movies List</Text>
+      {movies.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Chưa có phim nào.</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={movies}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderMovieItem}
+          contentContainerStyle={styles.listContent}
+        />
+      )}
     </View>
   );
 };
@@ -75,49 +85,43 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    padding: 16,
     backgroundColor: "#f5f5f5",
   },
-  card: {
-    width: "100%",
-    maxWidth: 400,
-  },
-  title: {
+  header: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 20,
+    marginBottom: 16,
     textAlign: "center",
   },
-  statusContainer: {
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 8,
+  listContent: {
+    paddingBottom: 20,
   },
-  statusLabel: {
-    fontSize: 16,
+  movieItem: {
+    marginBottom: 12,
+  },
+  card: {
+    elevation: 2,
+  },
+  title: {
+    fontSize: 18,
     fontWeight: "600",
-    marginBottom: 5,
+    marginBottom: 8,
   },
-  statusText: {
-    fontSize: 16,
-  },
-  button: {
-    marginTop: 10,
-  },
-  resultContainer: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: "#e8f5e9",
-    borderRadius: 8,
-  },
-  resultText: {
+  info: {
     fontSize: 14,
-    lineHeight: 20,
+    color: "#666",
+    marginBottom: 4,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#999",
   },
 });
 
 export default HomeScreen;
-

@@ -7,6 +7,8 @@ export const initDatabase = async (db: SQLiteDatabase) => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         year INTEGER,
+        watched INTEGER DEFAULT 0,
+        rating INTEGER,
         created_at INTEGER
       )
     `);
@@ -17,16 +19,16 @@ export const initDatabase = async (db: SQLiteDatabase) => {
 
         if (existing && existing.count === 0) {
             await db.runAsync(
-                `INSERT INTO movies (title, year, created_at) VALUES (?, ?, ?)`,
-                ["Inception", 2010, Date.now()]
+                `INSERT INTO movies (title, year, watched, rating, created_at) VALUES (?, ?, ?, ?, ?)`,
+                ["Inception", 2010, 1, 5, Date.now()]
             );
             await db.runAsync(
-                `INSERT INTO movies (title, year, created_at) VALUES (?, ?, ?)`,
-                ["Interstellar", 2014, Date.now()]
+                `INSERT INTO movies (title, year, watched, rating, created_at) VALUES (?, ?, ?, ?, ?)`,
+                ["Interstellar", 2014, 1, 4, Date.now()]
             );
             await db.runAsync(
-                `INSERT INTO movies (title, year, created_at) VALUES (?, ?, ?)`,
-                ["The Matrix", 1999, Date.now()]
+                `INSERT INTO movies (title, year, watched, rating, created_at) VALUES (?, ?, ?, ?, ?)`,
+                ["The Matrix", 1999, 0, null, Date.now()]
             );
         }
 
