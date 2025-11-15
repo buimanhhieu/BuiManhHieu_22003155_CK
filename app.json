@@ -11,7 +11,8 @@
       {
         "origin": "https://n"
       }
-    ]
+    ],
+    "expo-sqlite"
   ],
   "name": "BuiManhHieu_22003155_CK1",
   "slug": "BuiManhHieu_22003155_CK1"
