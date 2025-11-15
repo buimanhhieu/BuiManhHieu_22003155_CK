@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
-import { Card, FAB, Icon } from "react-native-paper";
+import { Card, FAB, Icon, TextInput, SegmentedButtons } from "react-native-paper";
 import MovieModal from "@/components/MovieModal";
 import { createMovie, toggleWatched, updateMovie, deleteMovie } from "@/db";
 
@@ -20,12 +20,10 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [watchedFilter, setWatchedFilter] = useState<string>("all");
 
-  useEffect(() => {
-    loadMovies();
-  }, []);
-
-  const loadMovies = async () => {
+  const loadMovies = useCallback(async () => {
     try {
       const data = await db.getAllAsync<Movie>(
         "SELECT * FROM movies ORDER BY created_at DESC"
@@ -36,9 +34,13 @@ const HomeScreen = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [db]);
 
-  const handleAddMovie = async (data: {
+  useEffect(() => {
+    loadMovies();
+  }, [loadMovies]);
+
+  const handleAddMovie = useCallback(async (data: {
     title: string;
     year?: number;
     rating?: number;
@@ -49,9 +51,9 @@ const HomeScreen = () => {
     } catch (error) {
       console.error("Error adding movie:", error);
     }
-  };
+  }, [db, loadMovies]);
 
-  const handleEditMovie = async (data: {
+  const handleEditMovie = useCallback(async (data: {
     title: string;
     year?: number;
     rating?: number;
@@ -64,9 +66,9 @@ const HomeScreen = () => {
     } catch (error) {
       console.error("Error editing movie:", error);
     }
-  };
+  }, [db, editingMovie, loadMovies]);
 
-  const handleSaveMovie = async (data: {
+  const handleSaveMovie = useCallback(async (data: {
     title: string;
     year?: number;
     rating?: number;
@@ -76,18 +78,18 @@ const HomeScreen = () => {
     } else {
       await handleAddMovie(data);
     }
-  };
+  }, [editingMovie, handleEditMovie, handleAddMovie]);
 
-  const handleToggleWatched = async (id: number) => {
+  const handleToggleWatched = useCallback(async (id: number) => {
     try {
       await toggleWatched(db, id);
       await loadMovies();
     } catch (error) {
       console.error("Error toggling watched:", error);
     }
-  };
+  }, [db, loadMovies]);
 
-  const handleDeleteMovie = (id: number, title: string) => {
+  const handleDeleteMovie = useCallback((id: number, title: string) => {
     Alert.alert(
       "Xác nhận xóa",
       `Bạn có chắc chắn muốn xóa phim "${title}"?`,
@@ -111,7 +113,26 @@ const HomeScreen = () => {
         },
       ]
     );
-  };
+  }, [db, loadMovies]);
+
+  const filteredMovies = useMemo(() => {
+    let filtered = movies;
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter((movie) =>
+        movie.title.toLowerCase().includes(query)
+      );
+    }
+
+    if (watchedFilter === "watched") {
+      filtered = filtered.filter((movie) => movie.watched === 1);
+    } else if (watchedFilter === "unwatched") {
+      filtered = filtered.filter((movie) => movie.watched === 0);
+    }
+
+    return filtered;
+  }, [movies, searchQuery, watchedFilter]);
 
   const renderMovieItem = ({ item }: { item: Movie }) => {
     const isWatched = item.watched === 1;
@@ -180,13 +201,40 @@ const HomeScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Movies List</Text>
-      {movies.length === 0 ? (
+      
+      <View style={styles.searchSection}>
+        <TextInput
+          label="Tìm kiếm phim"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          mode="outlined"
+          left={<TextInput.Icon icon="magnify" />}
+          style={styles.searchInput}
+        />
+        
+        <SegmentedButtons
+          value={watchedFilter}
+          onValueChange={setWatchedFilter}
+          buttons={[
+            { value: "all", label: "Tất cả" },
+            { value: "watched", label: "Đã xem" },
+            { value: "unwatched", label: "Chưa xem" },
+          ]}
+          style={styles.filterButtons}
+        />
+      </View>
+
+      {filteredMovies.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Chưa có phim nào.</Text>
+          <Text style={styles.emptyText}>
+            {movies.length === 0
+              ? "Chưa có phim nào."
+              : "Không tìm thấy phim nào."}
+          </Text>
         </View>
       ) : (
         <FlatList
-          data={movies}
+          data={filteredMovies}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderMovieItem}
           contentContainerStyle={styles.listContent}
@@ -226,6 +274,16 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 16,
     textAlign: "center",
+  },
+  searchSection: {
+    marginBottom: 16,
+  },
+  searchInput: {
+    marginBottom: 12,
+    backgroundColor: "white",
+  },
+  filterButtons: {
+    marginBottom: 8,
   },
   listContent: {
     paddingBottom: 20,
