@@ -1,6 +1,7 @@
 import { View, Text, Modal, Alert, StyleSheet } from "react-native";
 import React, { useState, useEffect } from "react";
 import { Button, TextInput } from "react-native-paper";
+import { colors } from "@/theme/colors";
 
 type Movie = {
   id: number;
@@ -160,20 +161,24 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
-    backgroundColor: "white",
+    backgroundColor: colors.paper,
     borderRadius: 12,
     padding: 24,
     width: "90%",
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 20,
     textAlign: "center",
+    color: colors.primary,
   },
   input: {
     marginBottom: 16,
+    backgroundColor: colors.surface,
   },
   buttonRow: {
     flexDirection: "row",

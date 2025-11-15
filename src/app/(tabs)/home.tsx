@@ -1,10 +1,18 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from "react-native";
-import { useSQLiteContext } from "expo-sqlite";
-import { Card, FAB, Icon, TextInput, SegmentedButtons, Button } from "react-native-paper";
+import React, { useState, useMemo, useCallback } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+} from "react-native";
+import { Card, FAB, Icon, TextInput, SegmentedButtons, Button, Chip } from "react-native-paper";
 import MovieModal from "@/components/MovieModal";
 import ImportAPIModal from "@/components/ImportAPIModal";
-import { createMovie, toggleWatched, updateMovie, deleteMovie, importMovies } from "@/db";
+import { useMovies } from "@/hooks/useMovies";
+import { colors } from "@/theme/colors";
 
 type Movie = {
   id: number;
@@ -16,141 +24,90 @@ type Movie = {
 };
 
 const HomeScreen = () => {
-  const db = useSQLiteContext();
-  const [movies, setMovies] = useState<Movie[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    movies,
+    loading,
+    sortBy,
+    setSortBy,
+    loadMovies,
+    addMovie,
+    editMovie,
+    removeMovie,
+    toggleMovieWatched,
+    importFromAPI,
+    sortedMovies,
+  } = useMovies();
+
   const [modalVisible, setModalVisible] = useState(false);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [watchedFilter, setWatchedFilter] = useState<string>("all");
   const [importModalVisible, setImportModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadMovies = useCallback(async () => {
-    try {
-      const data = await db.getAllAsync<Movie>(
-        "SELECT * FROM movies ORDER BY created_at DESC"
-      );
-      setMovies(data);
-    } catch (error) {
-      console.error("Error loading movies:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [db]);
-
-  useEffect(() => {
-    loadMovies();
-  }, [loadMovies]);
-
-  const handleAddMovie = useCallback(async (data: {
-    title: string;
-    year?: number;
-    rating?: number;
-  }) => {
-    try {
-      await createMovie(db, data);
-      await loadMovies();
-    } catch (error) {
-      console.error("Error adding movie:", error);
-    }
-  }, [db, loadMovies]);
-
-  const handleEditMovie = useCallback(async (data: {
-    title: string;
-    year?: number;
-    rating?: number;
-  }) => {
-    if (!editingMovie) return;
-    try {
-      await updateMovie(db, editingMovie.id, data);
-      await loadMovies();
-      setEditingMovie(null);
-    } catch (error) {
-      console.error("Error editing movie:", error);
-    }
-  }, [db, editingMovie, loadMovies]);
-
-  const handleSaveMovie = useCallback(async (data: {
-    title: string;
-    year?: number;
-    rating?: number;
-  }) => {
-    if (editingMovie) {
-      await handleEditMovie(data);
-    } else {
-      await handleAddMovie(data);
-    }
-  }, [editingMovie, handleEditMovie, handleAddMovie]);
-
-  const handleToggleWatched = useCallback(async (id: number) => {
-    try {
-      await toggleWatched(db, id);
-      await loadMovies();
-    } catch (error) {
-      console.error("Error toggling watched:", error);
-    }
-  }, [db, loadMovies]);
-
-  const handleDeleteMovie = useCallback((id: number, title: string) => {
-    Alert.alert(
-      "Xác nhận xóa",
-      `Bạn có chắc chắn muốn xóa phim "${title}"?`,
-      [
-        {
-          text: "Hủy",
-          style: "cancel",
-        },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteMovie(db, id);
-              await loadMovies();
-            } catch (error) {
-              console.error("Error deleting movie:", error);
-              Alert.alert("Lỗi", "Không thể xóa phim. Vui lòng thử lại.");
-            }
-          },
-        },
-      ]
-    );
-  }, [db, loadMovies]);
-
-  const handleImportFromAPI = useCallback(async (apiUrl: string) => {
-    try {
-      const response = await fetch(apiUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+  const handleSaveMovie = useCallback(
+    async (data: { title: string; year?: number; rating?: number }) => {
+      try {
+        if (editingMovie) {
+          await editMovie(editingMovie.id, data);
+          setEditingMovie(null);
+        } else {
+          await addMovie(data);
+        }
+      } catch (error) {
+        console.error("Error saving movie:", error);
       }
-      const data = await response.json();
+    },
+    [editingMovie, editMovie, addMovie]
+  );
 
-      if (!Array.isArray(data)) {
-        throw new Error("API response must be an array");
-      }
-
-      const moviesToImport = data.map((item: any) => ({
-        title: item.title || item.name || "",
-        year: item.year ? parseInt(item.year) : undefined,
-        rating: item.rating ? parseInt(item.rating) : undefined,
-      })).filter((movie: any) => movie.title.trim() !== "");
-
-      if (moviesToImport.length === 0) {
-        throw new Error("Không có phim hợp lệ trong API response");
-      }
-
-      const result = await importMovies(db, moviesToImport);
-      await loadMovies();
-
+  const handleDeleteMovie = useCallback(
+    (id: number, title: string) => {
       Alert.alert(
-        "Import thành công",
-        `Đã import ${result.imported} phim mới.\nBỏ qua ${result.skipped} phim trùng lặp.`
+        "Xác nhận xóa",
+        `Bạn có chắc chắn muốn xóa phim "${title}"?`,
+        [
+          {
+            text: "Hủy",
+            style: "cancel",
+          },
+          {
+            text: "Xóa",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await removeMovie(id);
+              } catch (error) {
+                Alert.alert("Lỗi", "Không thể xóa phim. Vui lòng thử lại.");
+              }
+            },
+          },
+        ]
       );
-    } catch (error: any) {
-      console.error("Error importing from API:", error);
-      throw new Error(error.message || "Không thể import phim từ API");
-    }
-  }, [db, loadMovies]);
+    },
+    [removeMovie]
+  );
+
+  const handleImportFromAPI = useCallback(
+    async (apiUrl: string) => {
+      try {
+        const result = await importFromAPI(apiUrl);
+        Alert.alert(
+          "Import thành công",
+          `Đã import ${result.imported} phim mới.\nBỏ qua ${result.skipped} phim trùng lặp.`
+        );
+      } catch (error: any) {
+        throw error;
+      }
+    },
+    [importFromAPI]
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadMovies();
+    setRefreshing(false);
+  }, [loadMovies]);
 
   const filteredMovies = useMemo(() => {
     let filtered = movies;
@@ -168,23 +125,24 @@ const HomeScreen = () => {
       filtered = filtered.filter((movie) => movie.watched === 0);
     }
 
-    return filtered;
-  }, [movies, searchQuery, watchedFilter]);
+    return sortedMovies(filtered, sortBy);
+  }, [movies, searchQuery, watchedFilter, sortBy, sortedMovies]);
 
   const renderMovieItem = ({ item }: { item: Movie }) => {
     const isWatched = item.watched === 1;
-    
+
     return (
       <View style={styles.movieItem}>
         <Card style={[styles.card, isWatched && styles.cardWatched]}>
-          <Card.Content>
+          <View style={styles.cardLine} />
+          <Card.Content style={styles.cardContent}>
             <View style={styles.titleRow}>
               <Text style={[styles.title, isWatched && styles.titleWatched]}>
                 {item.title}
               </Text>
               <View style={styles.actionRow}>
                 {isWatched && (
-                  <Icon source="check-circle" size={24} color="#4CAF50" />
+                  <Icon source="check-circle" size={24} color={colors.success} />
                 )}
                 <TouchableOpacity
                   onPress={() => {
@@ -193,33 +151,48 @@ const HomeScreen = () => {
                   }}
                   style={styles.editButton}
                 >
-                  <Icon source="pencil" size={20} color="#666" />
+                  <Icon source="pencil" size={20} color={colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleDeleteMovie(item.id, item.title)}
                   style={styles.deleteButton}
                 >
-                  <Icon source="delete" size={20} color="#f44336" />
+                  <Icon source="delete" size={20} color={colors.error} />
                 </TouchableOpacity>
               </View>
             </View>
             <TouchableOpacity
-              onPress={() => handleToggleWatched(item.id)}
+              onPress={() => toggleMovieWatched(item.id)}
               activeOpacity={0.7}
             >
-              {item.year && (
-                <Text style={[styles.info, isWatched && styles.infoWatched]}>
-                  Year: {item.year}
-                </Text>
-              )}
-              <Text style={[styles.info, isWatched && styles.infoWatched]}>
-                Watched: {isWatched ? "Yes" : "No"}
-              </Text>
-              {item.rating && (
-                <Text style={[styles.info, isWatched && styles.infoWatched]}>
-                  Rating: {item.rating}/5
-                </Text>
-              )}
+              <View style={styles.infoRow}>
+                {item.year && (
+                  <View style={styles.infoItem}>
+                    <Icon source="calendar" size={16} color={colors.textSecondary} />
+                    <Text style={[styles.info, isWatched && styles.infoWatched]}>
+                      {item.year}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.infoItem}>
+                  <Icon
+                    source={isWatched ? "eye" : "eye-off"}
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={[styles.info, isWatched && styles.infoWatched]}>
+                    {isWatched ? "Đã xem" : "Chưa xem"}
+                  </Text>
+                </View>
+                {item.rating && (
+                  <View style={styles.infoItem}>
+                    <Icon source="star" size={16} color={colors.primary} />
+                    <Text style={[styles.info, isWatched && styles.infoWatched]}>
+                      {item.rating}/5
+                    </Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           </Card.Content>
         </Card>
@@ -227,18 +200,67 @@ const HomeScreen = () => {
     );
   };
 
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyCard}>
+        <Icon source="movie-off" size={64} color={colors.textLight} />
+        <Text style={styles.emptyTitle}>
+          {movies.length === 0
+            ? "Chưa có phim nào"
+            : "Không tìm thấy phim nào"}
+        </Text>
+        <Text style={styles.emptySubtitle}>
+          {movies.length === 0
+            ? "Nhấn nút + để thêm phim mới"
+            : "Thử tìm kiếm với từ khóa khác"}
+        </Text>
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text>Loading...</Text>
+        <View style={styles.loadingContainer}>
+          <Icon source="loading" size={48} color={colors.primary} />
+          <Text style={styles.loadingText}>Đang tải...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Movies List</Text>
-      
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Danh sách phim</Text>
+        <View style={styles.sortContainer}>
+          <Chip
+            selected={sortBy === "created_at"}
+            onPress={() => setSortBy("created_at")}
+            style={styles.sortChip}
+            selectedColor={colors.primary}
+          >
+            Mới nhất
+          </Chip>
+          <Chip
+            selected={sortBy === "year"}
+            onPress={() => setSortBy("year")}
+            style={styles.sortChip}
+            selectedColor={colors.primary}
+          >
+            Năm
+          </Chip>
+          <Chip
+            selected={sortBy === "title"}
+            onPress={() => setSortBy("title")}
+            style={styles.sortChip}
+            selectedColor={colors.primary}
+          >
+            Tên
+          </Chip>
+        </View>
+      </View>
+
       <View style={styles.searchSection}>
         <TextInput
           label="Tìm kiếm phim"
@@ -247,8 +269,14 @@ const HomeScreen = () => {
           mode="outlined"
           left={<TextInput.Icon icon="magnify" />}
           style={styles.searchInput}
+          theme={{
+            colors: {
+              primary: colors.primary,
+              outline: colors.border,
+            },
+          }}
         />
-        
+
         <SegmentedButtons
           value={watchedFilter}
           onValueChange={setWatchedFilter}
@@ -265,25 +293,29 @@ const HomeScreen = () => {
           icon="download"
           onPress={() => setImportModalVisible(true)}
           style={styles.importButton}
+          textColor={colors.primary}
+          buttonColor={colors.paper}
         >
           Import từ API
         </Button>
       </View>
 
       {filteredMovies.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {movies.length === 0
-              ? "Chưa có phim nào."
-              : "Không tìm thấy phim nào."}
-          </Text>
-        </View>
+        renderEmptyState()
       ) : (
         <FlatList
           data={filteredMovies}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderMovieItem}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         />
       )}
 
@@ -294,6 +326,8 @@ const HomeScreen = () => {
           setEditingMovie(null);
           setModalVisible(true);
         }}
+        color={colors.surface}
+        customSize={56}
       />
 
       <MovieModal
@@ -318,46 +352,99 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  headerContainer: {
+    backgroundColor: colors.surface,
     padding: 16,
-    backgroundColor: "#f5f5f5",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
-    marginBottom: 16,
+    color: colors.primary,
+    marginBottom: 12,
     textAlign: "center",
   },
+  sortContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  sortChip: {
+    backgroundColor: colors.paper,
+    borderColor: colors.border,
+  },
   searchSection: {
-    marginBottom: 16,
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   searchInput: {
     marginBottom: 12,
-    backgroundColor: "white",
+    backgroundColor: colors.paper,
   },
   filterButtons: {
-    marginBottom: 8,
-  },
-  importButton: {
-    marginTop: 8,
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
-  movieItem: {
     marginBottom: 12,
   },
+  importButton: {
+    marginTop: 4,
+    borderColor: colors.primary,
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 80,
+  },
+  movieItem: {
+    marginBottom: 16,
+  },
   card: {
+    backgroundColor: colors.paper,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
     elevation: 2,
+  },
+  cardLine: {
+    position: "absolute",
+    left: 40,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: colors.paperLine,
+    opacity: 0.5,
   },
   cardWatched: {
     opacity: 0.7,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: colors.backgroundLight,
+  },
+  cardContent: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 12,
+    paddingLeft: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
   },
   actionRow: {
     flexDirection: "row",
@@ -374,33 +461,74 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     flex: 1,
+    color: colors.text,
   },
   titleWatched: {
     textDecorationLine: "line-through",
-    color: "#999",
+    color: colors.textLight,
+  },
+  infoRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    marginTop: 8,
+  },
+  infoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   info: {
     fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
+    color: colors.textSecondary,
   },
   infoWatched: {
-    color: "#999",
+    color: colors.textLight,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    padding: 32,
   },
-  emptyText: {
+  emptyCard: {
+    backgroundColor: colors.paper,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+    minWidth: 280,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: colors.textLight,
+    textAlign: "center",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
     fontSize: 16,
-    color: "#999",
+    color: colors.textSecondary,
   },
   fab: {
     position: "absolute",
     margin: 16,
     right: 0,
     bottom: 0,
+    backgroundColor: colors.primary,
   },
 });
 

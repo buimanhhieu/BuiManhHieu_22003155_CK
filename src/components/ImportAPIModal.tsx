@@ -1,6 +1,7 @@
 import { View, Text, Modal, StyleSheet, Keyboard } from "react-native";
 import React, { useState } from "react";
 import { Button, TextInput, ActivityIndicator } from "react-native-paper";
+import { colors } from "@/theme/colors";
 
 type Props = {
   visible: boolean;
@@ -109,24 +110,27 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
-    backgroundColor: "white",
+    backgroundColor: colors.paper,
     borderRadius: 12,
     padding: 24,
     width: "90%",
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 20,
     textAlign: "center",
+    color: colors.primary,
   },
   input: {
     marginBottom: 16,
-    backgroundColor: "white",
+    backgroundColor: colors.surface,
   },
   errorText: {
-    color: "#f44336",
+    color: colors.error,
     fontSize: 14,
     marginBottom: 12,
   },
@@ -139,7 +143,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: "#666",
+    color: colors.textSecondary,
   },
   buttonRow: {
     flexDirection: "row",
