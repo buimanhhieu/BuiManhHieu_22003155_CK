@@ -3,7 +3,7 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity } from "react-native
 import { useSQLiteContext } from "expo-sqlite";
 import { Card, FAB, Icon } from "react-native-paper";
 import MovieModal from "@/components/MovieModal";
-import { createMovie, toggleWatched } from "@/db";
+import { createMovie, toggleWatched, updateMovie } from "@/db";
 
 type Movie = {
   id: number;
@@ -19,6 +19,7 @@ const HomeScreen = () => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
 
   useEffect(() => {
     loadMovies();
@@ -50,6 +51,33 @@ const HomeScreen = () => {
     }
   };
 
+  const handleEditMovie = async (data: {
+    title: string;
+    year?: number;
+    rating?: number;
+  }) => {
+    if (!editingMovie) return;
+    try {
+      await updateMovie(db, editingMovie.id, data);
+      await loadMovies();
+      setEditingMovie(null);
+    } catch (error) {
+      console.error("Error editing movie:", error);
+    }
+  };
+
+  const handleSaveMovie = async (data: {
+    title: string;
+    year?: number;
+    rating?: number;
+  }) => {
+    if (editingMovie) {
+      await handleEditMovie(data);
+    } else {
+      await handleAddMovie(data);
+    }
+  };
+
   const handleToggleWatched = async (id: number) => {
     try {
       await toggleWatched(db, id);
@@ -63,21 +91,32 @@ const HomeScreen = () => {
     const isWatched = item.watched === 1;
     
     return (
-      <TouchableOpacity
-        onPress={() => handleToggleWatched(item.id)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.movieItem}>
-          <Card style={[styles.card, isWatched && styles.cardWatched]}>
-            <Card.Content>
-              <View style={styles.titleRow}>
-                <Text style={[styles.title, isWatched && styles.titleWatched]}>
-                  {item.title}
-                </Text>
+      <View style={styles.movieItem}>
+        <Card style={[styles.card, isWatched && styles.cardWatched]}>
+          <Card.Content>
+            <View style={styles.titleRow}>
+              <Text style={[styles.title, isWatched && styles.titleWatched]}>
+                {item.title}
+              </Text>
+              <View style={styles.actionRow}>
                 {isWatched && (
                   <Icon source="check-circle" size={24} color="#4CAF50" />
                 )}
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditingMovie(item);
+                    setModalVisible(true);
+                  }}
+                  style={styles.editButton}
+                >
+                  <Icon source="pencil" size={20} color="#666" />
+                </TouchableOpacity>
               </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => handleToggleWatched(item.id)}
+              activeOpacity={0.7}
+            >
               {item.year && (
                 <Text style={[styles.info, isWatched && styles.infoWatched]}>
                   Year: {item.year}
@@ -91,10 +130,10 @@ const HomeScreen = () => {
                   Rating: {item.rating}/5
                 </Text>
               )}
-            </Card.Content>
-          </Card>
-        </View>
-      </TouchableOpacity>
+            </TouchableOpacity>
+          </Card.Content>
+        </Card>
+      </View>
     );
   };
 
@@ -125,13 +164,20 @@ const HomeScreen = () => {
       <FAB
         icon="plus"
         style={styles.fab}
-        onPress={() => setModalVisible(true)}
+        onPress={() => {
+          setEditingMovie(null);
+          setModalVisible(true);
+        }}
       />
 
       <MovieModal
         visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onSave={handleAddMovie}
+        onClose={() => {
+          setModalVisible(false);
+          setEditingMovie(null);
+        }}
+        onSave={handleSaveMovie}
+        movie={editingMovie}
       />
     </View>
   );
@@ -167,6 +213,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 8,
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  editButton: {
+    padding: 4,
   },
   title: {
     fontSize: 18,

@@ -76,3 +76,14 @@ export const toggleWatched = async (db: SQLiteDatabase, id: number) => {
         );
     }
 };
+
+export const updateMovie = async (
+    db: SQLiteDatabase,
+    id: number,
+    data: { title: string; year?: number; rating?: number }
+) => {
+    await db.runAsync(
+        `UPDATE movies SET title = ?, year = ?, rating = ? WHERE id = ?`,
+        [data.title, data.year || null, data.rating || null, id]
+    );
+};

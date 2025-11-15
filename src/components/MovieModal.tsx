@@ -1,17 +1,37 @@
 import { View, Text, Modal, Alert, StyleSheet } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button, TextInput } from "react-native-paper";
+
+type Movie = {
+  id: number;
+  title: string;
+  year: number | null;
+  rating: number | null;
+};
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   onSave: (data: { title: string; year?: number; rating?: number }) => void;
+  movie?: Movie | null;
 };
 
-const MovieModal = ({ visible, onClose, onSave }: Props) => {
+const MovieModal = ({ visible, onClose, onSave, movie }: Props) => {
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
   const [rating, setRating] = useState("");
+
+  useEffect(() => {
+    if (movie) {
+      setTitle(movie.title);
+      setYear(movie.year ? movie.year.toString() : "");
+      setRating(movie.rating ? movie.rating.toString() : "");
+    } else {
+      setTitle("");
+      setYear("");
+      setRating("");
+    }
+  }, [movie, visible]);
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -83,7 +103,9 @@ const MovieModal = ({ visible, onClose, onSave }: Props) => {
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Thêm phim mới</Text>
+          <Text style={styles.modalTitle}>
+            {movie ? "Sửa phim" : "Thêm phim mới"}
+          </Text>
 
           <TextInput
             label="Tiêu đề *"
