@@ -14,11 +14,17 @@ const HomeScreen = () => {
 
   const checkDatabase = async () => {
     try {
-      const result = await db.getFirstAsync<{ count: number }>(
-        "SELECT 1 as count"
+      const tableInfo = await db.getAllAsync(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='movies'"
       );
-      if (result) {
-        setDbStatus("✅ Database connected successfully");
+      
+      if (tableInfo.length > 0) {
+        const movieCount = await db.getFirstAsync<{ count: number }>(
+          "SELECT COUNT(*) as count FROM movies"
+        );
+        setDbStatus(`Database connected. Movies table exists. ${movieCount?.count || 0} movie(s) found.`);
+      } else {
+        setDbStatus("Database connected but movies table not found");
       }
     } catch (error) {
       setDbStatus("Database connection failed");
@@ -28,26 +34,10 @@ const HomeScreen = () => {
 
   const testDatabase = async () => {
     try {
-      await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS test_table (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          created_at INTEGER
-        )
-      `);
-
-      await db.runAsync(
-        "INSERT INTO test_table (name, created_at) VALUES (?, ?)",
-        ["Test Item", Date.now()]
-      );
-
-      const items = await db.getAllAsync("SELECT * FROM test_table");
-      
-      await db.runAsync("DELETE FROM test_table");
-
-      setTestResult(`✅ Test passed! Created and deleted test data. Found ${items.length} item(s).`);
+      const movies = await db.getAllAsync("SELECT * FROM movies");
+      setTestResult(` Found ${movies.length} movie(s) in database.`);
     } catch (error) {
-      setTestResult(`❌ Test failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setTestResult(` Test failed: ${error instanceof Error ? error.message : "Unknown error"}`);
       console.error("Test error:", error);
     }
   };
