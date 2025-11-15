@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
 import { Card, FAB, Icon } from "react-native-paper";
 import MovieModal from "@/components/MovieModal";
-import { createMovie, toggleWatched, updateMovie } from "@/db";
+import { createMovie, toggleWatched, updateMovie, deleteMovie } from "@/db";
 
 type Movie = {
   id: number;
@@ -87,6 +87,32 @@ const HomeScreen = () => {
     }
   };
 
+  const handleDeleteMovie = (id: number, title: string) => {
+    Alert.alert(
+      "Xác nhận xóa",
+      `Bạn có chắc chắn muốn xóa phim "${title}"?`,
+      [
+        {
+          text: "Hủy",
+          style: "cancel",
+        },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMovie(db, id);
+              await loadMovies();
+            } catch (error) {
+              console.error("Error deleting movie:", error);
+              Alert.alert("Lỗi", "Không thể xóa phim. Vui lòng thử lại.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderMovieItem = ({ item }: { item: Movie }) => {
     const isWatched = item.watched === 1;
     
@@ -110,6 +136,12 @@ const HomeScreen = () => {
                   style={styles.editButton}
                 >
                   <Icon source="pencil" size={20} color="#666" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleDeleteMovie(item.id, item.title)}
+                  style={styles.deleteButton}
+                >
+                  <Icon source="delete" size={20} color="#f44336" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -220,6 +252,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   editButton: {
+    padding: 4,
+  },
+  deleteButton: {
     padding: 4,
   },
   title: {

@@ -87,3 +87,7 @@ export const updateMovie = async (
         [data.title, data.year || null, data.rating || null, id]
     );
 };
+
+export const deleteMovie = async (db: SQLiteDatabase, id: number) => {
+    await db.runAsync(`DELETE FROM movies WHERE id = ?`, [id]);
+};
