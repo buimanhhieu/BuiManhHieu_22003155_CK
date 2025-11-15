@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
-import { Card, FAB, Icon, TextInput, SegmentedButtons } from "react-native-paper";
+import { Card, FAB, Icon, TextInput, SegmentedButtons, Button } from "react-native-paper";
 import MovieModal from "@/components/MovieModal";
-import { createMovie, toggleWatched, updateMovie, deleteMovie } from "@/db";
+import ImportAPIModal from "@/components/ImportAPIModal";
+import { createMovie, toggleWatched, updateMovie, deleteMovie, importMovies } from "@/db";
 
 type Movie = {
   id: number;
@@ -22,6 +23,7 @@ const HomeScreen = () => {
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [watchedFilter, setWatchedFilter] = useState<string>("all");
+  const [importModalVisible, setImportModalVisible] = useState(false);
 
   const loadMovies = useCallback(async () => {
     try {
@@ -113,6 +115,41 @@ const HomeScreen = () => {
         },
       ]
     );
+  }, [db, loadMovies]);
+
+  const handleImportFromAPI = useCallback(async (apiUrl: string) => {
+    try {
+      const response = await fetch(apiUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error("API response must be an array");
+      }
+
+      const moviesToImport = data.map((item: any) => ({
+        title: item.title || item.name || "",
+        year: item.year ? parseInt(item.year) : undefined,
+        rating: item.rating ? parseInt(item.rating) : undefined,
+      })).filter((movie: any) => movie.title.trim() !== "");
+
+      if (moviesToImport.length === 0) {
+        throw new Error("Không có phim hợp lệ trong API response");
+      }
+
+      const result = await importMovies(db, moviesToImport);
+      await loadMovies();
+
+      Alert.alert(
+        "Import thành công",
+        `Đã import ${result.imported} phim mới.\nBỏ qua ${result.skipped} phim trùng lặp.`
+      );
+    } catch (error: any) {
+      console.error("Error importing from API:", error);
+      throw new Error(error.message || "Không thể import phim từ API");
+    }
   }, [db, loadMovies]);
 
   const filteredMovies = useMemo(() => {
@@ -222,6 +259,15 @@ const HomeScreen = () => {
           ]}
           style={styles.filterButtons}
         />
+
+        <Button
+          mode="outlined"
+          icon="download"
+          onPress={() => setImportModalVisible(true)}
+          style={styles.importButton}
+        >
+          Import từ API
+        </Button>
       </View>
 
       {filteredMovies.length === 0 ? (
@@ -259,6 +305,12 @@ const HomeScreen = () => {
         onSave={handleSaveMovie}
         movie={editingMovie}
       />
+
+      <ImportAPIModal
+        visible={importModalVisible}
+        onClose={() => setImportModalVisible(false)}
+        onImport={handleImportFromAPI}
+      />
     </View>
   );
 };
@@ -284,6 +336,9 @@ const styles = StyleSheet.create({
   },
   filterButtons: {
     marginBottom: 8,
+  },
+  importButton: {
+    marginTop: 8,
   },
   listContent: {
     paddingBottom: 20,

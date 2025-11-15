@@ -91,3 +91,53 @@ export const updateMovie = async (
 export const deleteMovie = async (db: SQLiteDatabase, id: number) => {
     await db.runAsync(`DELETE FROM movies WHERE id = ?`, [id]);
 };
+
+export const checkMovieExists = async (
+    db: SQLiteDatabase,
+    title: string,
+    year: number | null
+): Promise<boolean> => {
+    if (year !== null) {
+        const existing = await db.getFirstAsync<{ count: number }>(
+            `SELECT COUNT(*) as count FROM movies WHERE title = ? AND year = ?`,
+            [title, year]
+        );
+        return existing ? existing.count > 0 : false;
+    } else {
+        const existing = await db.getFirstAsync<{ count: number }>(
+            `SELECT COUNT(*) as count FROM movies WHERE title = ? AND year IS NULL`,
+            [title]
+        );
+        return existing ? existing.count > 0 : false;
+    }
+};
+
+export const importMovies = async (
+    db: SQLiteDatabase,
+    movies: Array<{ title: string; year?: number; rating?: number }>
+): Promise<{ imported: number; skipped: number }> => {
+    let imported = 0;
+    let skipped = 0;
+
+    for (const movie of movies) {
+        const exists = await checkMovieExists(db, movie.title, movie.year || null);
+        if (exists) {
+            skipped++;
+            continue;
+        }
+
+        await db.runAsync(
+            `INSERT INTO movies (title, year, watched, rating, created_at) VALUES (?, ?, ?, ?, ?)`,
+            [
+                movie.title,
+                movie.year || null,
+                0,
+                movie.rating || null,
+                Date.now(),
+            ]
+        );
+        imported++;
+    }
+
+    return { imported, skipped };
+};
