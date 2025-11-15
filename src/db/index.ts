@@ -13,6 +13,21 @@ export const initDatabase = async (db: SQLiteDatabase) => {
       )
     `);
 
+        const tableInfo = await db.getAllAsync(
+            `PRAGMA table_info(movies)`
+        );
+
+        const hasWatched = tableInfo.some((col: any) => col.name === 'watched');
+        const hasRating = tableInfo.some((col: any) => col.name === 'rating');
+
+        if (!hasWatched) {
+            await db.execAsync(`ALTER TABLE movies ADD COLUMN watched INTEGER DEFAULT 0`);
+        }
+
+        if (!hasRating) {
+            await db.execAsync(`ALTER TABLE movies ADD COLUMN rating INTEGER`);
+        }
+
         const existing = await db.getFirstAsync<{ count: number }>(
             `SELECT COUNT(*) as count FROM movies`
         );
@@ -47,4 +62,17 @@ export const createMovie = async (
         `INSERT INTO movies (title, year, watched, rating, created_at) VALUES (?, ?, ?, ?, ?)`,
         [data.title, data.year || null, 0, data.rating || null, Date.now()]
     );
+};
+
+export const toggleWatched = async (db: SQLiteDatabase, id: number) => {
+    const movie = await db.getFirstAsync<{ watched: number }>(
+        `SELECT watched FROM movies WHERE id = ?`,
+        [id]
+    );
+    if (movie) {
+        await db.runAsync(
+            `UPDATE movies SET watched = ? WHERE id = ?`,
+            [movie.watched === 1 ? 0 : 1, id]
+        );
+    }
 };

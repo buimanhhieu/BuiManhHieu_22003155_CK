@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
-import { Card, FAB } from "react-native-paper";
+import { Card, FAB, Icon } from "react-native-paper";
 import MovieModal from "@/components/MovieModal";
-import { createMovie } from "@/db";
+import { createMovie, toggleWatched } from "@/db";
 
 type Movie = {
   id: number;
@@ -50,24 +50,51 @@ const HomeScreen = () => {
     }
   };
 
+  const handleToggleWatched = async (id: number) => {
+    try {
+      await toggleWatched(db, id);
+      await loadMovies();
+    } catch (error) {
+      console.error("Error toggling watched:", error);
+    }
+  };
+
   const renderMovieItem = ({ item }: { item: Movie }) => {
+    const isWatched = item.watched === 1;
+    
     return (
-      <View style={styles.movieItem}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.title}>{item.title}</Text>
-            {item.year && (
-              <Text style={styles.info}>Year: {item.year}</Text>
-            )}
-            <Text style={styles.info}>
-              Watched: {item.watched === 1 ? "Yes" : "No"}
-            </Text>
-            {item.rating && (
-              <Text style={styles.info}>Rating: {item.rating}/5</Text>
-            )}
-          </Card.Content>
-        </Card>
-      </View>
+      <TouchableOpacity
+        onPress={() => handleToggleWatched(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.movieItem}>
+          <Card style={[styles.card, isWatched && styles.cardWatched]}>
+            <Card.Content>
+              <View style={styles.titleRow}>
+                <Text style={[styles.title, isWatched && styles.titleWatched]}>
+                  {item.title}
+                </Text>
+                {isWatched && (
+                  <Icon source="check-circle" size={24} color="#4CAF50" />
+                )}
+              </View>
+              {item.year && (
+                <Text style={[styles.info, isWatched && styles.infoWatched]}>
+                  Year: {item.year}
+                </Text>
+              )}
+              <Text style={[styles.info, isWatched && styles.infoWatched]}>
+                Watched: {isWatched ? "Yes" : "No"}
+              </Text>
+              {item.rating && (
+                <Text style={[styles.info, isWatched && styles.infoWatched]}>
+                  Rating: {item.rating}/5
+                </Text>
+              )}
+            </Card.Content>
+          </Card>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -131,15 +158,32 @@ const styles = StyleSheet.create({
   card: {
     elevation: 2,
   },
+  cardWatched: {
+    opacity: 0.7,
+    backgroundColor: "#f0f0f0",
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
   title: {
     fontSize: 18,
     fontWeight: "600",
-    marginBottom: 8,
+    flex: 1,
+  },
+  titleWatched: {
+    textDecorationLine: "line-through",
+    color: "#999",
   },
   info: {
     fontSize: 14,
     color: "#666",
     marginBottom: 4,
+  },
+  infoWatched: {
+    color: "#999",
   },
   emptyContainer: {
     flex: 1,

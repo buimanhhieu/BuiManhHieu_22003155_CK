@@ -10,10 +10,10 @@ const Tabslayout = () => {
       <Tabs.Screen
         name="home"
         options={{
-          title: "Home",
+          title: "Movies",
           tabBarIcon: ({ focused, color }) => (
             <Icon
-              source={focused ? "home" : "home-outline"}
+              source={focused ? "movie" : "movie-outline"}
               size={24}
               color={color}
             />
